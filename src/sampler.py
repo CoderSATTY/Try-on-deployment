@@ -3,6 +3,8 @@ import joblib
 from PIL import Image
 import numpy as np
 from diffusers import FluxFillPipeline, FluxPriorReduxPipeline
+from torchvision import transforms
+
 from utils import zero_out, apply_flux_guidance
 from apply_clip import run_clip
 from apply_style import load_style_model, apply_stylemodel, STYLE_MODEL_PATH, CLIPOutputWrapper
@@ -27,7 +29,6 @@ if __name__ == "__main__":
     dtype = torch.bfloat16
     print(f"Using device: {device} with dtype: {dtype}")
 
-    print("\n--- Step 1: Loading and preparing cached text embeddings ---")
     conditioning_cache_path = "/teamspace/studios/this_studio/.porting/models/conditioning/text_cache.conditioning"
     conditioning_cpu = joblib.load(conditioning_cache_path)
     
@@ -46,47 +47,51 @@ if __name__ == "__main__":
     negative_conds, = zero_out(styled_conds)
     positive_conds, = apply_flux_guidance(styled_conds, 40.3)
     
-    prompt_embeds, pooled_prompt_embeds = prepare_embeddings_for_diffusers(
+    initial_prompt_embeds, initial_pooled_prompt_embeds = prepare_embeddings_for_diffusers(
         positive_conds, negative_conds
     )
     print("Cached embeddings prepared successfully.")
     
-    print("\n--- Step 2: Fusing image and text guidance with FluxPriorReduxPipeline ---")
     repo_redux = "black-forest-labs/FLUX.1-Redux-dev" 
     garment_image_path = "/teamspace/studios/this_studio/.porting/imgs/input_img_1.jpg"
     garment_image_pil = Image.open(garment_image_path).convert("RGB")
 
-    pipe_prior_redux = FluxPriorReduxPipeline.from_pretrained(repo_redux, torch_dtype=dtype).to(device)
+    pipe_prior_redux = FluxPriorReduxPipeline.from_pretrained(repo_redux, dtype=dtype).to(device)
     
     pipe_prior_output = pipe_prior_redux(
         image=garment_image_pil,
-        # prompt_embeds=prompt_embeds,
-        # pooled_prompt_embeds=pooled_prompt_embeds,
-        # generator=torch.Generator(device).manual_seed(123)
+        prompt_embeds=initial_prompt_embeds,
+        pooled_prompt_embeds=initial_pooled_prompt_embeds
     )
-    print("pipe_prior_output:\n", pipe_prior_output)
-    # # prior_latents = pipe_prior_output.latents
-    # print(f"Generated prior latents with shape: {}")
+    
+    fused_prompt_embeds = pipe_prior_output.prompt_embeds
+    fused_pooled_prompt_embeds = pipe_prior_output.pooled_prompt_embeds
+    print(f"Generated fused embeddings successfully.")
 
-    print("\n--- Step 3: Running the final FluxFillPipeline for inpainting ---")
     image_concat_path = "/teamspace/studios/this_studio/.porting/imgs/img_pixels_concat.jpg"
     mask_path = "/teamspace/studios/this_studio/.porting/imgs/img_mask_concat.jpg"
     image_concat_pil = Image.open(image_concat_path).convert("RGB")
     mask_pil = Image.open(mask_path).convert("L")
 
+    transform = transforms.Compose([
+        transforms.ToTensor(),
+    ])
+    image_tensor = transform(image_concat_pil).unsqueeze(0).to(device, dtype=dtype)
+    mask_tensor = transform(mask_pil).unsqueeze(0).to(device, dtype=dtype)
+
     pipe_fill = FluxFillPipeline.from_pretrained(
         "black-forest-labs/FLUX.1-Fill-dev", 
-        torch_dtype=dtype
+        dtype=dtype
     ).to(device)
 
     output_image = pipe_fill(
-        image=image_concat_pil,
-        mask_image=mask_pil,
-        prompt_embeds=prompt_embeds,
-        pooled_prompt_embeds=pooled_prompt_embeds,
-        guidance_scale=7.0,
-        num_inference_steps=40,
-        strength=0.95,
+        image=image_tensor,
+        mask_image=mask_tensor,
+        prompt_embeds=fused_prompt_embeds,
+        pooled_prompt_embeds=fused_pooled_prompt_embeds,
+        guidance_scale=50.0,
+        num_inference_steps=20,
+        strength=1.00,
         generator=torch.Generator(device).manual_seed(456)
     ).images[0]
 
