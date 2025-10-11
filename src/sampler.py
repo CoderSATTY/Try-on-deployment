@@ -1,14 +1,13 @@
 import torch
 import joblib
 from PIL import Image
+import numpy as np
 from diffusers import FluxFillPipeline, FluxPriorReduxPipeline
 from torchvision import transforms
 
-# ... (all your other functions and imports) ...
 from utils import zero_out, apply_flux_guidance
 from apply_clip import run_clip
 from apply_style import load_style_model, apply_stylemodel, STYLE_MODEL_PATH, CLIPOutputWrapper
-
 
 def prepare_embeddings_for_diffusers(positive_conds, negative_conds):
     uncond_prompt_embeds = negative_conds[0][0]
@@ -52,8 +51,8 @@ if __name__ == "__main__":
         positive_conds, negative_conds
     )
     print("Cached embeddings prepared successfully.")
-
-    repo_redux = "black-forest-labs/FLUX.1-Redux-dev"
+    
+    repo_redux = "black-forest-labs/FLUX.1-Redux-dev" 
     garment_image_path = "/teamspace/studios/this_studio/.porting/imgs/input_img_1.jpg"
     garment_image_pil = Image.open(garment_image_path).convert("RGB")
 
@@ -67,9 +66,7 @@ if __name__ == "__main__":
     )
     
     fused_prompt_embeds = pipe_prior_output.prompt_embeds
-    print("fused_prompt_embeds:", fused_prompt_embeds)
     fused_pooled_prompt_embeds = pipe_prior_output.pooled_prompt_embeds
-    print("fused_pooled_prompt_embeds:", fused_pooled_prompt_embeds)
     print(f"Generated fused embeddings successfully.")
 
     image_concat_path = "/teamspace/studios/this_studio/.porting/imgs/img_pixels_concat.jpg"
@@ -77,13 +74,20 @@ if __name__ == "__main__":
     image_concat_pil = Image.open(image_concat_path).convert("RGB")
     mask_pil = Image.open(mask_path).convert("L")
 
-    transform = transforms.Compose([transforms.ToTensor()])
+    transform = transforms.Compose([
+        transforms.ToTensor(),
+    ])
     image_tensor = transform(image_concat_pil).unsqueeze(0).to(device, dtype=dtype)
     mask_tensor = transform(mask_pil).unsqueeze(0).to(device, dtype=dtype)
 
-    # Load first, then move to device and set dtype
     pipe_fill = FluxFillPipeline.from_pretrained("black-forest-labs/FLUX.1-Fill-dev")
     pipe_fill.to(device, dtype=dtype)
+
+    lora_path = "/teamspace/studios/this_studio/.porting/models/loras/comfyui_subject_lora16.safetensors"
+    lora_scale = 0.3
+    
+    pipe_fill.load_lora_weights(lora_path)
+    print(f"Successfully loaded LoRA from: {lora_path}")
 
     output_image = pipe_fill(
         image=image_tensor,
@@ -93,8 +97,9 @@ if __name__ == "__main__":
         guidance_scale=50.0,
         num_inference_steps=20,
         strength=1.00,
-        generator=torch.Generator(device).manual_seed(456)
+        generator=torch.Generator(device).manual_seed(456),
+        joint_attention_kwargs={"scale": lora_scale}
     ).images[0]
 
-    output_image.save("final_inpainted_output.png")
-    print("\nDone! Final image saved to final_inpainted_output.png")
+    output_image.save("final_inpainted_output_with_lora.png")
+    print("\nDone! Final image saved to final_inpainted_output_with_lora.png")
