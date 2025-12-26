@@ -212,5 +212,8 @@ with gr.Blocks(title="Virtual Try-On", css=custom_css, theme=gr.themes.Base(prim
         outputs=[output_gallery, status_header]  # Added status_header to outputs
     )
 
+# app.py
 if __name__ == "__main__":
-    demo.launch()
+    # Render provides the PORT env variable. Default to 7860 locally.
+    port = int(os.environ.get("PORT", 7860))
+    demo.launch(server_name="0.0.0.0", server_port=port)
