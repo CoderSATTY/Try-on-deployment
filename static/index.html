@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Virtual Try-On Login</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="main-container">
+        
+        <div class="left-panel">
+            <div class="content-box">
+                <h1>Virtual Try-On<br><span class="highlight">AI Studio</span></h1>
+                <p class="subtitle">Experience the next generation of fashion technology.</p>
+                
+                <div class="features">
+                    <div class="feature-item">
+                        <h3>High Fidelity</h3>
+                        <p>Photorealistic garment transfer using advanced diffusion models.</p>
+                    </div>
+                    <div class="feature-item">
+                        <h3>Fast Inference</h3>
+                        <p>Powered by Modal A100 GPUs for results in seconds.</p>
+                    </div>
+                    <div class="feature-item">
+                        <h3>Secure Access</h3>
+                        <p>Protected by OTP verification and usage quotas.</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="right-panel">
+            <div class="login-card">
+                
+                <div id="step-login">
+                    <h2>Welcome Back</h2>
+                    <p class="form-desc">Enter your details to access the studio.</p>
+                    
+                    <label>Full Name</label>
+                    <input type="text" id="name" placeholder="Ex: John Doe">
+                    
+                    <label>Email Address</label>
+                    <input type="email" id="email" placeholder="name@example.com">
+                    
+                    <button onclick="sendCode()">Send Access Code</button>
+                    <p id="msg-login" class="status-msg"></p>
+                </div>
+
+                <div id="step-verify" style="display: none;">
+                    <h2>Verify Email</h2>
+                    <p class="form-desc">We sent a 6-digit code to your email.</p>
+                    
+                    <label>Verification Code</label>
+                    <input type="text" id="code" placeholder="123456" maxlength="6">
+                    
+                    <button onclick="verifyCode()">Verify & Enter</button>
+                    <p id="msg-verify" class="status-msg"></p>
+                    
+                    <a href="#" onclick="location.reload()" class="back-link">Go Back</a>
+                </div>
+
+            </div>
+        </div>
+
+    </div>
+    <script src="script.js"></script>
+</body>
+</html>
