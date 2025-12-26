@@ -1,8 +1,7 @@
 import os
-import smtplib
 import random
 import string
-from email.mime.text import MIMEText
+import resend
 from pymongo import MongoClient
 from datetime import datetime
 from dotenv import load_dotenv
@@ -10,8 +9,7 @@ from dotenv import load_dotenv
 load_dotenv()
 
 MONGO_URI = os.getenv("MONGO_URI") 
-EMAIL_SENDER = os.getenv("EMAIL_SENDER")
-EMAIL_PASSWORD = os.getenv("EMAIL_PASSWORD")
+RESEND_API_KEY = os.getenv("RESEND_API_KEY")
 
 db = None
 users_collection = None
@@ -28,30 +26,22 @@ def generate_code():
     return ''.join(random.choices(string.digits, k=6))
 
 def send_email(to_email, code):
-    if not EMAIL_SENDER or not EMAIL_PASSWORD:
+    if not RESEND_API_KEY:
         return False, "Server Error: Email Not Configured."
 
-    msg = MIMEText(f"Your Verification Code is: {code}")
-    msg['Subject'] = "Your Verification Code"
-    msg['From'] = EMAIL_SENDER
-    msg['To'] = to_email
+    resend.api_key = RESEND_API_KEY
 
     try:
-        # CORRECT LOGIC FOR PORT 587
-        # 1. Use standard SMTP (not SSL)
-        server = smtplib.SMTP('smtp.gmail.com', 587)
-        
-        # 2. Upgrade connection to secure
-        server.starttls() 
-        
-        # 3. Login and Send
-        server.login(EMAIL_SENDER, EMAIL_PASSWORD)
-        server.sendmail(EMAIL_SENDER, to_email, msg.as_string())
-        server.quit() # Close connection
-        
+        # Uses HTTP (Port 443) which Render allows
+        r = resend.Emails.send({
+            "from": "onboarding@resend.dev",  # Use this default for testing, or your verified domain
+            "to": to_email,
+            "subject": "Your Verification Code",
+            "html": f"<p>Your Verification Code is: <strong>{code}</strong></p>"
+        })
         return True, "Code sent!"
     except Exception as e:
-        print(f"Email Error: {e}") # Print error to logs for debugging
+        print(f"Email Error: {e}") 
         return False, f"Email Failed: {str(e)}"
 
 def register_user(email, name):
