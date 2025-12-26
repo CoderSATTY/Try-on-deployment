@@ -19,8 +19,6 @@ cloudinary.config(
 
 API_URL = "https://me240003014--tryon-inference-fastapi-app.modal.run/generate" 
 
-# --- UTILS ---
-
 def get_user_from_url(request: gr.Request):
     if request:
         return request.query_params.get('user')
@@ -62,9 +60,16 @@ async def process_tryon(email, subject_file, subject_url_input, garment_file, ga
         
         if response.status_code == 200:
             image_bytes = response.content
+            
             # 5. Increment Usage on Success
             backend.increment_usage(email)
-            return [Image.open(io.BytesIO(image_bytes))]
+            
+            # --- UPDATE STATUS HEADER ---
+            new_remaining = max(0, remaining - 1)
+            status_msg = f"<div class='logged-in-message'>Logged in as: {email} | Credits: {new_remaining}/3</div>"
+            
+            # Return Image AND Updated Status Message
+            return [Image.open(io.BytesIO(image_bytes))], status_msg
         else:
             print(f"API Error: {response.status_code} - {response.text}")
             raise gr.Error(f"Generation failed: {response.status_code}")
@@ -74,13 +79,11 @@ async def process_tryon(email, subject_file, subject_url_input, garment_file, ga
         raise gr.Error(f"Connection Error: {str(e)}")
 
     finally:
-        # Cleanup Cloudinary resources
         if sub_id:
             await asyncio.to_thread(cloudinary.uploader.destroy, sub_id)
         if garm_id:
             await asyncio.to_thread(cloudinary.uploader.destroy, garm_id)
 
-# --- CSS CONFIGURATION (Black, Orange, White) ---
 custom_css = """
 /* --- Layout CSS --- */
 .output-gallery-class {
@@ -155,8 +158,7 @@ button.primary {
 }
 """
 
-# --- UI BUILDER ---
-# Using a base theme with primary_hue set to orange
+
 with gr.Blocks(title="Virtual Try-On", css=custom_css, theme=gr.themes.Base(primary_hue="orange", neutral_hue="slate")) as demo:
     
     user_email_state = gr.State()
@@ -172,7 +174,6 @@ with gr.Blocks(title="Virtual Try-On", css=custom_css, theme=gr.themes.Base(prim
         # Standard Orange styled message
         return email, f"<div class='logged-in-message'>Logged in as: {email} | Credits: {remaining}/3</div>"
 
-    # Header for status
     status_header = gr.HTML()
 
     with gr.Row():
@@ -208,5 +209,8 @@ with gr.Blocks(title="Virtual Try-On", css=custom_css, theme=gr.themes.Base(prim
     run_button.click(
         fn=process_tryon,
         inputs=[user_email_state, subject_image, subject_url, garment_image, garment_url],
-        outputs=output_gallery
+        outputs=[output_gallery, status_header]  # Added status_header to outputs
     )
+
+if __name__ == "__main__":
+    demo.launch()
