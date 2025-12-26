@@ -37,11 +37,21 @@ def send_email(to_email, code):
     msg['To'] = to_email
 
     try:
-        with smtplib.SMTP_SSL('smtp.gmail.com', 587) as server:
-            server.login(EMAIL_SENDER, EMAIL_PASSWORD)
-            server.sendmail(EMAIL_SENDER, to_email, msg.as_string())
+        # CORRECT LOGIC FOR PORT 587
+        # 1. Use standard SMTP (not SSL)
+        server = smtplib.SMTP('smtp.gmail.com', 587)
+        
+        # 2. Upgrade connection to secure
+        server.starttls() 
+        
+        # 3. Login and Send
+        server.login(EMAIL_SENDER, EMAIL_PASSWORD)
+        server.sendmail(EMAIL_SENDER, to_email, msg.as_string())
+        server.quit() # Close connection
+        
         return True, "Code sent!"
     except Exception as e:
+        print(f"Email Error: {e}") # Print error to logs for debugging
         return False, f"Email Failed: {str(e)}"
 
 def register_user(email, name):
